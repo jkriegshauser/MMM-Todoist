@@ -1,40 +1,64 @@
+/* Priority color bar on left */
 .priority {
     width: 3px;
     border-right: 3px;
 }
 
 .priority1 {
-    background-color: #D1453B;
+    background-color: #D1453B; /* reddish */
 }
 
 .priority2 {
-    background-color: #EB8909;
+    background-color: #EB8909; /* orange */
 }
 
 .priority3 {
-    background-color: #246FE0;
+    background-color: #246FE0; /* blue */
 }
 
+/* Text alignment */
 .alignLeft {
     text-align: left;
 }
 
+.nowrap {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Spacer cell width */
 .spacerCell {
     width: 3px;
 }
 
-.overdue {
-    text-decoration: underline #ac0000;
+/* Due date styling */
+.divTableCell.dueDate {
+    color: #fff;
+    font-weight: lighter;
 }
 
-.today {
-    text-decoration: underline #03a05c;
+.divTableCell.dueDate.dueOverdue {
+    color: #FF0000 !important;
+    font-weight: bold !important;
 }
 
-.tomorrow {
-    text-decoration: underline #166cec;
+.divTableCell.dueDate.dueToday {
+    color: #fff !important;
+    font-weight: lighter !important;
 }
 
+.divTableCell.dueDate.dueTomorrow {
+    color: #999 !important;
+    font-weight: lighter !important;
+}
+
+.divTableCell.dueDate.dueFuture {
+    color: #999 !important;
+    font-weight: lighter !important;
+}
+
+/* Project color dot */
 .projectcolor {
     padding: 0 !important;
     margin-right: 4px !important;
@@ -46,51 +70,126 @@
     margin-top: 3px;
 }
 
-
-/* .dueDate {
-    min-width: 100px;
-} */
-
+/* Avatar (not shown but preserved) */
 .todoAvatarImg {
     border-radius: 50%;
-    /* filter: grayscale(100%); */
-    height: 27px;
+    height: 0px;
     display: block;
-    margin-left: 10px;
-    margin-right: auto;
+    margin-left: 3px;
+    margin-right: 0px;
 }
 
-.divTable{
-	display: table;
-	width: 100%;
+/* Main table container */
+.divTable {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
 }
+
+/* Row styling */
 .divTableRow {
-	display: table-row;
+    display: flex;
+    align-items: center;
 }
-.divTableHeading {
-	background-color: #EEE;
-	display: table-header-group;
+
+/* Heading row styling */
+.divTableRow.divTableHeadingRow > .divTableCell,
+.divTableRow.divTableHeadingRow > .divTableHead {
+    font-weight: bold;
+    font-size: 15px;
+    color: #fff;
+    padding: 8px 0;
+    text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
 }
-.divTableCell, .divTableHead {
-	/* border: 1px solid #999999; */
-	display: table-cell;
-	/* padding: 3px 10px; */
-	vertical-align: middle;
+
+/* Specific due date header fix */
+.divTableRow.divTableHeadingRow > .divTableCell.dueDate,
+.divTableRow.divTableHeadingRow > .divTableHead.dueDate {
+    min-width: 100px;
+    flex: 0 0 auto;
 }
-.divTableHeading {
-	background-color: #EEE;
-	display: table-header-group;
-	font-weight: bold;
+
+/* Optional override for all heading cells */
+.divTableHead,
+.divTableCell {
+    box-sizing: border-box;
+    padding: 2px 2px;
+    flex-shrink: 0;
+	font-size: 10px;
 }
-.divTableFoot {
-	background-color: #EEE;
-	display: table-footer-group;
-	font-weight: bold;
+
+/* Task content column */
+.divTableCell.todoTextCell,
+.divTableHead.todoTextCell {
+    flex-grow: 1;
+    min-width: 200px;
+	max-width: 350px;
+    white-space: normal;
 }
-.divTableBody {
-	display: table-row-group;
+
+/* Priority column */
+.divTableHead.priority, 
+.divTableCell.priority {
+    width: 60px;
+    text-align: center;
+    justify-content: center;
+    display: flex;
 }
-.todoTextCell {
-    width: 400px;
+
+/* Project column */
+.divTableHead.projectName,
+.divTableCell.projectName {
+    padding: 0 8px;
+    text-align: left;        /* Remove or override this */
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: lighter;
+    display: flex;
+    align-items: center;
+    justify-content: center; /* ADD THIS */
+}
+
+
+/* Due date column (tasks) */
+.divTableHead.dueDate,
+.divTableCell.dueDate {
+    text-align: center;
+	padding: 2px 2px
+}
+
+/* Group header row for project name */
+.projectHeader {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #fff;
+    text-align: center;
+    padding: 8px 0;
+}
+
+.projectHeaderCell {
+    font-weight: bold;
+    font-size: 1.1em;
+    color: #fff;
+    text-align: center;
+    flex: 1;
+    padding: 8px 0;
+}
+
+/* Module-wide text color and font weight */
+.MMM-Todoist,
+.MMM-Todoist div,
+.MMM-Todoist span,
+.MMM-Todoist p {
+    color: #fff !important;
+    font-weight: 300;
+}
+
+.projectHeaderCell {
+  border-bottom: 1px solid #ccc;  /* thin light gray line */
+  padding-bottom: 8px;            /* some space below the text */
+  margin-bottom: 8px;             /* space between line and tasks */
 }
