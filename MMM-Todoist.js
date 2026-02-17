@@ -76,15 +76,19 @@ processData: function (data) {
       this.labels[label.id] = label;
     });
   }
+  
 
   this.user = data.user || {};
 
   let tasks = data.tasks || data.items || []; // accept both keys just in case
+  Log.info("Tasks: " + JSON.stringify(tasks, null, 2));
 
   // Filter tasks by project IDs if any configured
   if (this.config.projects.length > 0) {
-    const projectSet = new Set(this.config.projects.map(p => String(p)));
+    const projectSet = new Set(this.config.projects);
+	Log.info("projectSet: " + JSON.stringify(this.config.projects, null, 2));
     tasks = tasks.filter(task => projectSet.has(String(task.project_id)));
+	Log.info("Tasks after project filter: " + JSON.stringify(tasks, null, 2));
   }
 
   // Filter by due date window if set
@@ -182,8 +186,9 @@ processData: function (data) {
     if (due.datetime) {
       return new Date(due.datetime);
     } else if (due.date) {
-      const parts = due.date.split("-");
-      return new Date(parts[0], parts[1] - 1, parts[2]);
+      // const parts = due.date.split("-");
+      // return new Date(parts[0], parts[1] - 1, parts[2]);
+	  return new Date(due.date);
     }
     return null;
   },

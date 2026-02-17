@@ -15,7 +15,7 @@ module.exports = NodeHelper.create({
         ]);
 
         this.sendSocketNotification("TODOIST_TASKS", {
-          tasks: tasks,
+          tasks: tasks.results,
           projects: projects,
           labels: {}, // No labels fetched anymore
           user: {}, // REST API v2 has no user endpoint
@@ -28,7 +28,8 @@ module.exports = NodeHelper.create({
   },
 
   fetchTasks: async function (accessToken) {
-    const url = "https://api.todoist.com/rest/v1/tasks";
+    // const url = "https://api.todoist.com/rest/v1/tasks";
+	const url = "https://api.todoist.com/api/v1/tasks";
     const response = await fetch(url, {
       method: "GET",
       headers: {
@@ -46,7 +47,8 @@ module.exports = NodeHelper.create({
   },
 
   fetchProjects: async function (accessToken) {
-    const url = "https://api.todoist.com/rest/v1/projects";
+    // const url = "https://api.todoist.com/rest/v1/projects";
+	const url = "https://api.todoist.com/api/v1/projects";
     const response = await fetch(url, {
       method: "GET",
       headers: {
