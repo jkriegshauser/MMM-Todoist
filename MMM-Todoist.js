@@ -35,6 +35,7 @@ Module.register("MMM-Todoist", {
 
   socketNotificationReceived: function (notification, payload) {
     if (notification === "TODOIST_TASKS_" + this.instanceID) {
+      console.log("%c --- API SYNC: " + this.instanceID + " ---", "color: #00ff00; font-weight: bold;");
       this.processData(payload);
       this.updateDom();
     }
@@ -56,11 +57,9 @@ Module.register("MMM-Todoist", {
       cutOffDate.setHours(23, 59, 59, 999);
     }
 
-    // --- FILTERING: Project Match + Strict Date Window ---
     const filteredTasks = data.tasks.filter(t => {
       if (!targetProjects.includes(String(t.project_id))) return false;
       if (!t.due) return this.config.displayTasksWithoutDue;
-
       if (cutOffDate) {
         const taskDateStr = (t.due.date || t.due.datetime).substring(0, 10);
         const taskDate = new Date(taskDateStr + "T00:00:00");
@@ -69,21 +68,8 @@ Module.register("MMM-Todoist", {
       return true;
     });
 
-    if (data.fullSync || this.allTasks.length === 0) {
-      this.allTasks = filteredTasks;
-    } else {
-      filteredTasks.forEach(newTask => {
-        const index = this.allTasks.findIndex(t => t.id === newTask.id);
-        if (newTask.is_deleted || newTask.checked) {
-          if (index > -1) this.allTasks.splice(index, 1);
-        } else {
-          if (index > -1) this.allTasks[index] = newTask;
-          else this.allTasks.push(newTask);
-        }
-      });
-    }
+    this.allTasks = filteredTasks;
 
-    // --- PRECISION CLOCK-FIRST SORTING ---
     this.allTasks.sort((a, b) => {
       const getDueInfo = (due) => {
         if (!due) return { date: "9999-99-99", full: "", isTimed: false };
@@ -111,28 +97,23 @@ Module.register("MMM-Todoist", {
     const taskDate = new Date(raw.substring(0, 10) + "T00:00:00");
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-
     const diffDays = Math.floor((taskDate - today) / (1000 * 60 * 60 * 24));
 
-    if (diffDays < 0) return { label: "Overdue", className: "dueOverdue bright", isDimmed: false };
-    if (diffDays === 0) return { label: "Today", className: "dueToday bright", isDimmed: false };
-    if (diffDays === 1) return { label: "Tomorrow", className: "dueTomorrow dimmed", isDimmed: true };
-    
+    if (diffDays < 0) return { label: "Overdue", classes: ["dueOverdue", "bright"], isDimmed: false };
+    if (diffDays === 0) return { label: "Today", classes: ["dueToday", "bright"], isDimmed: false };
+    if (diffDays === 1) return { label: "Tomorrow", classes: ["dueTomorrow", "dimmed"], isDimmed: true };
     if (diffDays < 7) {
       const dayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
-      return { label: dayNames[taskDate.getDay()], className: "dueUpcoming dimmed", isDimmed: true };
+      return { label: dayNames[taskDate.getDay()], classes: ["dueUpcoming", "dimmed"], isDimmed: true };
     }
-
-    return { label: raw.substring(0, 10), className: "dueFuture dimmed", isDimmed: true };
+    return { label: raw.substring(0, 10), classes: ["dueFuture", "dimmed"], isDimmed: true };
   },
 
   getDom: function () {
     const wrapper = document.createElement("div");
     if (!this.allTasks.length) { wrapper.innerHTML = "<em>Loading...</em>"; return wrapper; }
-
     const container = document.createElement("div");
     container.className = "divTable";
-
     if (this.config.groupByProject) {
       const grouped = {};
       this.tasks.forEach(t => {
@@ -140,7 +121,6 @@ Module.register("MMM-Todoist", {
         if (!grouped[pId]) grouped[pId] = [];
         grouped[pId].push(t);
       });
-
       this.config.projects.forEach(pId => {
         const pidStr = String(pId);
         if (grouped[pidStr]) {
@@ -151,14 +131,12 @@ Module.register("MMM-Todoist", {
           hCell.textContent = this.projects[pidStr]?.name || "Project";
           hRow.appendChild(hCell);
           container.appendChild(hRow);
-
           grouped[pidStr].forEach(t => container.appendChild(this.renderTaskRow(t)));
         }
       });
     } else {
       this.tasks.forEach(t => container.appendChild(this.renderTaskRow(t)));
     }
-
     wrapper.appendChild(container);
     return wrapper;
   },
@@ -166,34 +144,25 @@ Module.register("MMM-Todoist", {
   renderTaskRow: function (task) {
     const row = document.createElement("div");
     row.className = "divTableRow";
-    
-    let dueInfo = null;
-    if (task.due) {
-      dueInfo = this.getDueLabelAndClass(task.due);
-      if (dueInfo.isDimmed) {
-        row.classList.add("dimmed");
-      }
-    }
+    let dueInfo = task.due ? this.getDueLabelAndClass(task.due) : null;
+    if (dueInfo && dueInfo.isDimmed) row.classList.add("dimmed");
 
     if (this.config.showPriorityColumn) {
       const pCell = document.createElement("div");
       pCell.className = "priority priority" + (5 - (task.priority || 1));
       row.appendChild(pCell);
     }
-
     const cCell = document.createElement("div");
     cCell.className = "todoTextCell alignLeft";
     cCell.textContent = task.content;
     row.appendChild(cCell);
-
     const dCell = document.createElement("div");
     dCell.className = "dueDate";
     if (dueInfo) {
       dCell.textContent = dueInfo.label;
-      dCell.classList.add(...dueInfo.className.split(" "));
+      dueInfo.classes.forEach(cls => dCell.classList.add(cls));
     }
     row.appendChild(dCell);
-    
     return row;
   }
 });
