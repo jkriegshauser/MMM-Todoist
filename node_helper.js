@@ -1,42 +1,53 @@
 const NodeHelper = require("node_helper");
-const fetch = require("node-fetch");
+const https = require("https");
 
 module.exports = NodeHelper.create({
-  start: function () {
-    console.log("Starting node helper for MMM-Todoist (2026 Unified API)");
-  },
+  tokens: {},
 
-  socketNotificationReceived: async function (notification, payload) {
+  socketNotificationReceived: function (notification, payload) {
     if (notification === "GET_TODOIST_TASKS") {
-      try {
-        const response = await fetch("https://api.todoist.com/api/v1/sync", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${payload.accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            sync_token: "*",
-            resource_types: ["projects", "items", "collaborators"] 
-          }),
-        });
+      const self = this;
+      const id = payload.instanceID;
+      
+      if (payload.forceFull || !this.tokens[id]) this.tokens[id] = "*";
 
-        if (!response.ok) {
-          const errorText = await response.text();
-          throw new Error(`Status ${response.status}: ${errorText}`);
+      const postData = JSON.stringify({
+        sync_token: this.tokens[id],
+        resource_types: ["projects", "items"]
+      });
+
+      const options = {
+        hostname: "api.todoist.com",
+        port: 443,
+        path: "/api/v1/sync",
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer " + payload.accessToken,
+          "Content-Type": "application/json",
+          "Content-Length": Buffer.byteLength(postData)
         }
+      };
 
-        const data = await response.json();
-
-        // Send data to the main module
-        this.sendSocketNotification("TODOIST_TASKS", {
-          tasks: data.items || [],      
-          projects: data.projects || [],
+      const req = https.request(options, (res) => {
+        let body = "";
+        res.on("data", (d) => { body += d; });
+        res.on("end", () => {
+          if (res.statusCode === 200) {
+            try {
+              const parsed = JSON.parse(body);
+              self.tokens[id] = parsed.sync_token;
+              self.sendSocketNotification("TODOIST_TASKS_" + id, {
+                tasks: parsed.items || [],
+                projects: parsed.projects || [],
+                fullSync: payload.forceFull,
+                rawResponse: parsed // Passing this back for browser logging
+              });
+            } catch (e) { console.error("Todoist Helper Error", e); }
+          }
         });
-      } catch (error) {
-        console.error("MMM-Todoist Helper Error:", error);
-        this.sendSocketNotification("TODOIST_ERROR", error.message);
-      }
+      });
+      req.write(postData);
+      req.end();
     }
-  },
+  }
 });
