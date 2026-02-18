@@ -3,67 +3,40 @@ const fetch = require("node-fetch");
 
 module.exports = NodeHelper.create({
   start: function () {
-    console.log("Starting node helper for MMM-Todoist (REST API v1)");
+    console.log("Starting node helper for MMM-Todoist (2026 Unified API)");
   },
 
   socketNotificationReceived: async function (notification, payload) {
     if (notification === "GET_TODOIST_TASKS") {
       try {
-        const [tasks, projects] = await Promise.all([
-          this.fetchTasks(payload.accessToken),
-          this.fetchProjects(payload.accessToken),
-        ]);
+        const response = await fetch("https://api.todoist.com/api/v1/sync", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${payload.accessToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            sync_token: "*",
+            resource_types: ["projects", "items", "collaborators"] 
+          }),
+        });
 
+        if (!response.ok) {
+          const errorText = await response.text();
+          throw new Error(`Status ${response.status}: ${errorText}`);
+        }
+
+        const data = await response.json();
+
+        // Send data to the main module
         this.sendSocketNotification("TODOIST_TASKS", {
-          tasks: tasks.results,
-          projects: projects,
-          labels: {}, // No labels fetched anymore
-          user: {}, // REST API v2 has no user endpoint
+          tasks: data.items || [],      
+          projects: data.projects || [],
         });
       } catch (error) {
-        console.error("MMM-Todoist: API error:", error);
+        console.error("MMM-Todoist Helper Error:", error);
         this.sendSocketNotification("TODOIST_ERROR", error.message);
       }
     }
   },
-
-  fetchTasks: async function (accessToken) {
-    // const url = "https://api.todoist.com/rest/v1/tasks";
-	const url = "https://api.todoist.com/api/v1/tasks";
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch tasks: ${response.status} ${errorText}`);
-    }
-
-    return response.json();
-  },
-
-  fetchProjects: async function (accessToken) {
-    // const url = "https://api.todoist.com/rest/v1/projects";
-	const url = "https://api.todoist.com/api/v1/projects";
-    const response = await fetch(url, {
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "Content-Type": "application/json",
-      },
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Failed to fetch projects: ${response.status} ${errorText}`);
-    }
-
-    return response.json();
-  },
-
-  // Removed fetchLabels function entirely
 });
