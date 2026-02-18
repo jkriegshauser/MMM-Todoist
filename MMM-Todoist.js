@@ -12,32 +12,25 @@ Module.register("MMM-Todoist", {
     accessToken: "",
     wrapEvents: true,           
     showPriorityColumn: true,
-    sortByPriority: true,
+    sortType: "todoist",         
     groupByProject: true,
     showDueDateLabels: true,     
     showHeaders: true,           
   },
 
-  getStyles: function () {
-    return ["MMM-Todoist.css"];
-  },
+  getStyles: () => ["MMM-Todoist.css"],
 
   start: function () {
-    Log.info("Starting module: " + this.name);
     this.tasks = [];
     this.projects = {};
     this.sendSocketNotification("GET_TODOIST_TASKS", { accessToken: this.config.accessToken });
-    setInterval(() => {
-      this.sendSocketNotification("GET_TODOIST_TASKS", { accessToken: this.config.accessToken });
-    }, this.config.updateInterval);
+    setInterval(() => this.sendSocketNotification("GET_TODOIST_TASKS", { accessToken: this.config.accessToken }), this.config.updateInterval);
   },
 
   socketNotificationReceived: function (notification, payload) {
     if (notification === "TODOIST_TASKS") {
       this.processData(payload);
       this.updateDom();
-    } else if (notification === "TODOIST_ERROR") {
-      Log.error("MMM-Todoist: API error:", payload);
     }
   },
 
@@ -49,51 +42,48 @@ Module.register("MMM-Todoist", {
 
     let tasks = data.tasks || [];
 
-    // 2026 Project Filter Fix
+    // 1. Project Filter
     if (this.config.projects.length > 0) {
       const projectSet = new Set(this.config.projects.map(String));
       tasks = tasks.filter(task => projectSet.has(String(task.project_id)));
     }
 
-    // 2026 Date Filter Fix (Time-Agnostic)
+    // 2. Date Filtering (Today/Overdue)
     const now = new Date();
     const todayStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0');
 
     tasks = tasks.filter(task => {
       if (!task.due) return this.config.displayTasksWithoutDue;
       const taskDateStr = (task.due.date || task.due.datetime).substring(0, 10);
-      if (this.config.displayTasksWithinDays === 0) {
-        return taskDateStr <= todayStr;
-      } else {
-        const cutoff = new Date();
-        cutoff.setDate(now.getDate() + this.config.displayTasksWithinDays);
-        const cutoffStr = cutoff.getFullYear() + "-" + String(cutoff.getMonth() + 1).padStart(2, '0') + "-" + String(cutoff.getDate()).padStart(2, '0');
-        return taskDateStr <= cutoffStr;
-      }
+      return taskDateStr <= todayStr;
     });
 
-    this.tasks = tasks.sort((a, b) => (a.priority || 4) - (b.priority || 4));
+    // 3. SORT: Priority (Descending) then Child Order (Ascending)
+    tasks.sort((a, b) => {
+      // API P4=Web P1, API P1=Web P4. Sort descending to put API 4 at top.
+      if (a.priority !== b.priority) {
+        return b.priority - a.priority;
+      }
+      const orderA = a.item_order !== undefined ? a.item_order : (a.child_order || 0);
+      const orderB = b.item_order !== undefined ? b.item_order : (b.child_order || 0);
+      return orderA - orderB;
+    });
+
+    this.tasks = tasks;
     if (this.config.maximumEntries > 0) this.tasks = this.tasks.slice(0, this.config.maximumEntries);
   },
 
-  // Helper for original date labels
   getDueLabelAndClass: function (due) {
     const taskDateStr = (due.date || due.datetime).substring(0, 10);
     const now = new Date();
     const todayStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, '0') + "-" + String(now.getDate()).padStart(2, '0');
-    
     if (taskDateStr < todayStr) return { label: "Overdue", className: "dueOverdue" };
-    if (taskDateStr === todayStr) return { label: "Today", className: "dueToday" };
-    
-    return { label: taskDateStr, className: "dueFuture" };
+    return { label: "Today", className: "dueToday" };
   },
 
   getDom: function () {
     const wrapper = document.createElement("div");
-    if (this.tasks.length === 0) {
-      wrapper.innerHTML = "<em>No tasks for today.</em>";
-      return wrapper;
-    }
+    if (!this.tasks.length) { wrapper.innerHTML = "<em>No tasks for today.</em>"; return wrapper; }
 
     const container = document.createElement("div");
     container.className = "divTable";
@@ -107,23 +97,10 @@ Module.register("MMM-Todoist", {
 
     Object.keys(tasksByProject).forEach(projId => {
       const projName = this.projects[projId] ? this.projects[projId].name : "Project";
-      
-      // RESTORED: Original Header Style
       const projectHeader = document.createElement("div");
       projectHeader.className = "divTableRow projectHeader";
       projectHeader.innerHTML = `<div class="divTableCell projectHeaderCell" style="font-weight:bold; padding:8px 0;">${projName}</div>`;
       container.appendChild(projectHeader);
-
-      if (this.config.showHeaders) {
-        const headerRow = document.createElement("div");
-        headerRow.className = "divTableRow divTableHeadingRow";
-        headerRow.innerHTML = `
-          ${this.config.showPriorityColumn ? '<div class="divTableHead priority">P</div>' : ''}
-          <div class="divTableHead todoTextCell">Task</div>
-          <div class="divTableHead dueDate">Due</div>
-        `;
-        container.appendChild(headerRow);
-      }
 
       const body = document.createElement("div");
       body.className = "divTableBody";
@@ -134,7 +111,9 @@ Module.register("MMM-Todoist", {
 
         if (this.config.showPriorityColumn) {
           const pCell = document.createElement("div");
-          pCell.className = "divTableCell priority priority" + (task.priority || 4);
+          // MAP API 4 to CSS 1, API 3 to CSS 2, etc.
+          const cssPriority = 5 - (task.priority || 1);
+          pCell.className = "divTableCell priority priority" + cssPriority;
           row.appendChild(pCell);
         }
 
