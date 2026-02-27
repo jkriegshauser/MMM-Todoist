@@ -23,14 +23,31 @@ Module.register("MMM-Todoist", {
     this.errorMessage = null;
     this.instanceID = this.config.selfIdentifier || this.identifier;
     this.isFetching = false;
+    this.fetchTimeout = null; // Holder for the watchdog timer
+
+    console.log("--- MMM-Todoist Starting: " + this.instanceID + " ---");
 
     setTimeout(() => { this.fetchTasks(true); }, 2000);
     setInterval(() => { this.fetchTasks(false); }, this.config.updateInterval);
   },
 
   fetchTasks: function (force) {
-    if (this.isFetching) return;
+    if (this.isFetching) {
+      console.log(this.instanceID + ": Fetch skipped - already in progress.");
+      return;
+    }
+    
     this.isFetching = true;
+
+    // --- WATCHDOG TIMER ---
+    // If no response is received in 15 seconds, reset the lock so the next interval can try again.
+    this.fetchTimeout = setTimeout(() => {
+      if (this.isFetching) {
+        console.warn(this.instanceID + ": Fetch timed out. Resetting lock.");
+        this.isFetching = false;
+      }
+    }, 15000);
+
     this.sendSocketNotification("GET_TODOIST_TASKS", {
       accessToken: this.config.accessToken,
       instanceID: this.instanceID,
@@ -39,28 +56,38 @@ Module.register("MMM-Todoist", {
   },
 
   socketNotificationReceived: function (notification, payload) {
-    if (notification === "TODOIST_TASKS_" + this.instanceID) {
-      this.isFetching = false;
-      this.errorMessage = null;
-
-      // Force recovery if we are stuck on loading but payload came back empty
-      if (this.allTasks.length === 0 && (!payload.tasks || payload.tasks.length === 0)) {
-        setTimeout(() => { this.fetchTasks(true); }, 10000);
-        return;
+    // Check if the notification belongs to this specific instance
+    if (notification === "TODOIST_TASKS_" + this.instanceID || notification === "TODOIST_ERROR_" + this.instanceID) {
+      
+      // Clear the watchdog timer since we got a response (even if it's an error)
+      if (this.fetchTimeout) {
+        clearTimeout(this.fetchTimeout);
+        this.fetchTimeout = null;
       }
 
-      try {
-        this.processData(payload);
+      this.isFetching = false;
+
+      if (notification === "TODOIST_TASKS_" + this.instanceID) {
+        this.errorMessage = null;
+
+        // Force recovery if we are stuck on loading but payload came back empty
+        if (this.allTasks.length === 0 && (!payload.tasks || payload.tasks.length === 0)) {
+          setTimeout(() => { this.fetchTasks(true); }, 10000);
+          return;
+        }
+
+        try {
+          this.processData(payload);
+          this.updateDom();
+        } catch (e) {
+          console.error("MMM-Todoist Critical Process Error: ", e);
+        }
+      }
+      
+      if (notification === "TODOIST_ERROR_" + this.instanceID) {
+        this.errorMessage = payload.type;
         this.updateDom();
-      } catch (e) {
-        console.error("MMM-Todoist Critical Process Error: ", e);
       }
-    }
-    
-    if (notification === "TODOIST_ERROR_" + this.instanceID) {
-      this.isFetching = false;
-      this.errorMessage = payload.type;
-      this.updateDom();
     }
   },
 
@@ -161,7 +188,6 @@ Module.register("MMM-Todoist", {
       return wrapper;
     }
     
-    // If we have tasks in memory but filtering killed them all
     if (this.allTasks.length > 0 && this.tasks.length === 0) {
         wrapper.innerHTML = "<div class='dimmed' style='padding:10px;'>No tasks matching filters.</div>";
         return wrapper;
